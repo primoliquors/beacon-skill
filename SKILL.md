@@ -32,9 +32,21 @@ granted consent, an agent-native path.
 ### Preferred: MCP (registry name `io.github.primoliquors/beacon`)
 Remote streamable-HTTP endpoint: `https://beacon-index.onrender.com/mcp`
 
-- `find_best_merchant(category, ship_to, require_age_gate, limit)` — the decision call.
-  Returns merchants ranked by earned trust, each with capabilities + evidence +
-  `ranking_basis`. Example: `find_best_merchant("vodka", "US-FL", true)`.
+- `find_best_merchant(category, ship_to, require_age_gate, limit, optimize_for,
+  product_type, dest_state, channel)` — the decision call. Returns merchants
+  ranked by honest signals, each with capabilities + evidence + `ranking_basis`.
+  Example: `find_best_merchant("vodka", "US-FL", true)`.
+  - **`optimize_for` — rank by what matters to YOUR buyer:** `"trust"` (default),
+    `"price"` (lowest matched price, see `best_price` per result), or `"speed"`
+    (same-day, then next-day fulfillment). Ties always break by earned trust,
+    and `ranking_basis` states the basis actually used.
+  - **Residence matching:** every result carries `ships_to` (list of states the
+    merchant ships to) — match it against where the buyer lives before choosing.
+  - **Strict compliance mode (recommended for alcohol):** also pass
+    `product_type` + `dest_state` + `channel` (`"ship"` or `"local_delivery"`) —
+    only merchants with an attested age-gate, an attested state license, and a
+    legal jurisdiction path for that product/state/channel are returned. An
+    illegal combination returns zero on purpose (fail-safe), not a best guess.
 - `search_offerings(category, in_stock_only, limit)` — products matching a need,
   joined to merchant + capabilities.
 - `verify_capability(merchant_id, capability)` — confirm e.g. `age_gate_21`,
@@ -45,6 +57,8 @@ Remote streamable-HTTP endpoint: `https://beacon-index.onrender.com/mcp`
 
 ### Fallback: REST (base `https://beacon-index.onrender.com`)
 - `GET /agent/find-best?category=vodka&ship_to=US-FL&require_age_gate=true`
+  (also accepts `optimize_for=trust|price|speed` and
+  `product_type=&dest_state=&channel=` for strict compliance mode)
 - `GET /agent/offerings?category=vodka`
 - `GET /agent/verify-capability?merchant_id=...&capability=age_gate_21`
 - `GET /.well-known/beacon` — discovery manifest (declares `trust_class=regulated`,
@@ -54,8 +68,13 @@ Note: the index runs on a free tier while in preview — the first request after
 idle may take up to a minute to wake the instance; retry once before giving up.
 
 ## How to read results
-- **Trust is earned.** `ranking_basis` states the ranking is earned-trust-only with
-  paid placement excluded. Prefer higher `trust_score`, then `confidence`.
+- **Trust is earned.** `ranking_basis` states exactly what led the ranking —
+  earned trust by default, or the buyer-directed preference you asked for —
+  and paid placement is excluded in every mode. Prefer higher `trust_score`,
+  then `confidence`.
+- **Ask the buyer what matters.** If they care about price, pass
+  `optimize_for="price"` and compare `best_price`; if they need it fast, pass
+  `optimize_for="speed"`; if unsure, default to trust.
 - **Check compliance before buying regulated goods.** Confirm `age_gate_21`,
   `licensed_retailer` (attested by the state, with license numbers in evidence),
   and the `ships_to_{region}` capability for the buyer's address.
